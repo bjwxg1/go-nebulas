@@ -45,13 +45,19 @@ var (
 
 // TransactionPool cache txs, is thread safe
 type TransactionPool struct {
+	//接收tx的chan
 	receivedMessageCh chan net.Message
+	//接收退出消息的chan
 	quitCh            chan int
-
+	//pool大小
 	size              int
+	//候选者的列表(有序)
 	candidates        *sorted.Slice
+
 	buckets           map[byteutils.HexHash]*sorted.Slice
+	//存放所有的tx，key tx的hash
 	all               map[byteutils.HexHash]*Transaction
+
 	bucketsLastUpdate map[byteutils.HexHash]time.Time
 
 	ns net.Service
@@ -117,6 +123,7 @@ func (pool *TransactionPool) SetGasConfig(gasPrice, gasLimit *util.Uint128) erro
 }
 
 // RegisterInNetwork register message subscriber in network.
+//向网络中注册订阅者，当网络中接收到tx消息时，会通过dispatcher发送到receivedMessageCh
 func (pool *TransactionPool) RegisterInNetwork(ns net.Service) {
 	ns.Register(net.NewSubscriber(pool, pool.receivedMessageCh, true, MessageTypeNewTx, net.MessageWeightNewTx))
 	pool.ns = ns
@@ -131,6 +138,7 @@ func (pool *TransactionPool) setEventEmitter(emitter *EventEmitter) {
 }
 
 // Start start loop.
+//启动pool
 func (pool *TransactionPool) Start() {
 	logging.CLog().WithFields(logrus.Fields{
 		"size": pool.size,
@@ -153,7 +161,9 @@ func (pool *TransactionPool) loop() {
 		"size": pool.size,
 	}).Info("Started TransactionPool.")
 
+	//监控的chan
 	metricsUpdateChan := time.NewTicker(metricUpdateInterval).C
+	//淘汰的chan
 	evictChan := time.NewTicker(txEvictInterval).C
 
 	for {
@@ -165,6 +175,7 @@ func (pool *TransactionPool) loop() {
 			metricsCandidates.Update(int64(pool.candidates.Len()))
 
 		case <-evictChan:
+			//淘汰超时的tx
 			pool.evictExpiredTransactions()
 
 		case <-pool.quitCh:
@@ -525,6 +536,7 @@ func (pool *TransactionPool) evictExpiredTransactions() {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
+	//遍历每一个bucket中的每一个slot,并判断slot的最后跟新时间是否大大于txLifetime就进行删除操作
 	for slot := range pool.buckets {
 		if timeLastDate, ok := pool.bucketsLastUpdate[slot]; ok {
 			if time.Since(timeLastDate) > txLifetime {
@@ -532,10 +544,13 @@ func (pool *TransactionPool) evictExpiredTransactions() {
 
 				val := bucket.PopLeft()
 				if tx := val.(*Transaction); tx != nil && tx.hash != nil {
+					//从candidates中进行删除
 					pool.candidates.Del(tx) // only remove the first from candidates
 				}
+				//循环删除slot中的tx
 				for val != nil {
 					if tx := val.(*Transaction); tx != nil && tx.hash != nil {
+						//从all中删除
 						delete(pool.all, tx.hash.Hex())
 						logging.VLog().WithFields(logrus.Fields{
 							"tx.hash":    tx.hash.Hex(),

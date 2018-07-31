@@ -44,9 +44,13 @@ const (
 // BlockPool a pool of all received blocks from network.
 // Blocks will be sent to Consensus when it passes signature verification.
 type BlockPool struct {
+	//pool大小
 	size                          int
+	//用于接收block的chan
 	receiveBlockMessageCh         chan net.Message
+	//用于接收downLoad消息的chan
 	receiveDownloadBlockMessageCh chan net.Message
+	//用户接收退出消息的chan
 	quitCh                        chan int
 
 	bc    *BlockChain

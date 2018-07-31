@@ -42,6 +42,7 @@ var (
 )
 
 // LoadGenesisConf load genesis conf for file
+//从config中读取创世区块配置
 func LoadGenesisConf(filePath string) (*corepb.Genesis, error) {
 	b, err := ioutil.ReadFile(filePath)
 	if err != nil {

@@ -89,12 +89,14 @@ func New(config *nebletpb.Config) (*Neblet, error) {
 	}
 
 	var err error
+	//加载创世区块
 	n.genesis, err = core.LoadGenesisConf(config.Chain.Genesis)
 	if err != nil {
 		logging.CLog().Error("Failed to load genesis config")
 		return nil, err
 	}
 
+	//创建accountManager
 	am, err := account.NewManager(n)
 	if err != nil {
 		return nil, err
@@ -194,6 +196,7 @@ func (n *Neblet) StartPprof(listen string) error {
 }
 
 // Start starts the services of the neblet.
+//整个区块链启动的入口
 func (n *Neblet) Start() {
 	n.lock.Lock()
 	defer n.lock.Unlock()
@@ -236,9 +239,11 @@ func (n *Neblet) Start() {
 	n.syncService.Start()
 
 	// start consensus
+	//开启DPOS进行挖矿
 	chainConf := n.config.Chain
 	if chainConf.StartMine {
 		n.consensus.Start()
+		//TODO
 		if chainConf.EnableRemoteSignServer == false {
 			passphrase := chainConf.Passphrase
 			if len(passphrase) == 0 {
@@ -258,7 +263,9 @@ func (n *Neblet) Start() {
 	}
 
 	// first sync
+	//这个地方 TODO
 	if len(n.Config().Network.Seed) > 0 {
+		//开始进行区块同步，同时暂停挖矿。同步完成后继续开始挖矿
 		n.blockChain.StartActiveSync()
 	} else {
 		if chainConf.StartMine {

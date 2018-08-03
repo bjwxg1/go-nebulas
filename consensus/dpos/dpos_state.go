@@ -217,8 +217,10 @@ func (ds *State) DynastyRoot() byteutils.Hash {
 }
 
 // FindProposer for now in given dynasty
+//找到合适的提议者
 func FindProposer(now int64, miners []byteutils.Hash) (proposer byteutils.Hash, err error) {
 	nowInMs := now * SecondInMs
+	//DynastyIntervalInMs一个朝代21*15000
 	offsetInMs := nowInMs % DynastyIntervalInMs
 	if (offsetInMs % BlockIntervalInMs) != 0 {
 		return nil, ErrNotBlockForgTime
@@ -252,6 +254,7 @@ func (ds *State) TimeStamp() int64 {
 // NextConsensusState return the new state after some seconds elapsed
 func (ds *State) NextConsensusState(elapsedSecond int64, worldState state.WorldState) (state.ConsensusState, error) {
 	elapsedSecondInMs := elapsedSecond * SecondInMs
+	//参数校验
 	if elapsedSecondInMs <= 0 || elapsedSecondInMs%BlockIntervalInMs != 0 {
 		return nil, ErrNotBlockForgTime
 	}
@@ -270,6 +273,7 @@ func (ds *State) NextConsensusState(elapsedSecond int64, worldState state.WorldS
 		consensus: ds.consensus,
 	}
 
+	//遍历dynastyTrie获取所有的矿工
 	miners, err := TraverseDynasty(dynastyTrie)
 	if err != nil {
 		return nil, err

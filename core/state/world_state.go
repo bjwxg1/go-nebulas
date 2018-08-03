@@ -262,6 +262,7 @@ func (s *states) RollBack() error {
 }
 
 func (s *states) Prepare(txid interface{}) (*states, error) {
+	//创建mvccDB并添加包preparedDBs
 	changelog, err := s.changelog.Prepare(txid)
 	if err != nil {
 		return nil, err
@@ -373,6 +374,7 @@ func (s *states) ConsensusRoot() *consensuspb.ConsensusRoot {
 	return s.consensusState.RootHash()
 }
 
+//将accState中ditryAccount的数据写入默克尔树
 func (s *states) Flush() error {
 	return s.accState.Flush()
 }

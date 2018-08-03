@@ -457,6 +457,7 @@ func (dpos *Dpos) unlock(passphrase string) error {
 
 func (dpos *Dpos) newBlock(tail *core.Block, consensusState state.ConsensusState, deadlineInMs int64) (*core.Block, error) {
 	startAt := time.Now().Unix()
+	//创建一个新区块
 	block, err := core.NewBlock(dpos.chain.ChainID(), dpos.coinbase, tail)
 	if err != nil {
 		logging.CLog().WithFields(logrus.Fields{
@@ -494,6 +495,7 @@ func (dpos *Dpos) newBlock(tail *core.Block, consensusState state.ConsensusState
 	}
 
 	block.WorldState().SetConsensusState(consensusState)
+	//设置区块生成时间
 	block.SetTimestamp(consensusState.TimeStamp())
 	block.CollectTransactions(deadlineInMs)
 	if err = block.Seal(); err != nil {
@@ -532,10 +534,12 @@ func (dpos *Dpos) newBlock(tail *core.Block, consensusState state.ConsensusState
 	return block, nil
 }
 
+//计算的上一个区块的结束时间
 func lastSlot(nowInMs int64) int64 {
 	return int64((nowInMs-SecondInMs)/BlockIntervalInMs) * BlockIntervalInMs
 }
 
+//计算下一个区块的开始时间
 func nextSlot(nowInMs int64) int64 {
 	return int64((nowInMs+BlockIntervalInMs-SecondInMs)/BlockIntervalInMs) * BlockIntervalInMs
 }
@@ -543,14 +547,18 @@ func nextSlot(nowInMs int64) int64 {
 func deadline(nowInMs int64) int64 {
 	nextSlotInMs := nextSlot(nowInMs)
 	remainInMs := nextSlotInMs - nowInMs
+	//判断挖块的最大时间间隔是否大于剩余时间,如果大于返回nextSlotInMs
 	if MaxMintDurationInMs > remainInMs {
 		return nextSlotInMs
 	}
 	return nowInMs + MaxMintDurationInMs
 }
 
+//根据尾节点和当前时间戳，校验并产生打包区块的截止时间
 func (dpos *Dpos) checkDeadline(tail *core.Block, nowInMs int64) (int64, error) {
+	//计算lastSlot
 	lastSlotInMs := lastSlot(nowInMs)
+	//计算nextSlot
 	nextSlotInMs := nextSlot(nowInMs)
 
 	if tail.Timestamp()*SecondInMs >= nextSlotInMs {
@@ -630,8 +638,10 @@ func (dpos *Dpos) mintBlock(now int64) error {
 		return ErrCannotMintWhenPending
 	}
 
+	//获取尾节点
 	tail := dpos.chain.TailBlock()
 
+	//check并计算当前bolck打包交易的截止时间
 	deadlineInMs, err := dpos.checkDeadline(tail, nowInMs)
 	if err != nil {
 		logging.VLog().WithFields(logrus.Fields{
@@ -642,6 +652,7 @@ func (dpos *Dpos) mintBlock(now int64) error {
 		return err
 	}
 
+	//生成consensusState
 	consensusState, err := dpos.checkProposer(tail, nowInMs)
 	if err != nil {
 		return err

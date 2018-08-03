@@ -68,6 +68,7 @@ type BlockHeader struct {
 	consensusRoot *consensuspb.ConsensusRoot
 
 	coinbase  *Address
+	//TODO 具体注意timeStamp的时间
 	timestamp int64
 	chainID   uint32
 
@@ -254,6 +255,7 @@ func NewBlock(chainID uint32, coinbase *Address, parent *Block) (*Block, error) 
 		storage:      parent.storage,
 	}
 
+	//开启事务
 	if err := block.Begin(); err != nil {
 		return nil, err
 	}
@@ -435,6 +437,7 @@ func (block *Block) LinkParentBlock(chain *BlockChain, parentBlock *Block) error
 }
 
 // Begin a batch task
+//开启事务
 func (block *Block) Begin() error {
 	return block.WorldState().Begin()
 }
@@ -523,7 +526,9 @@ func (block *Block) CollectTransactions(deadlineInMs int64) {
 				return
 			}
 			try++
+			//从transactionPool取出符合条件的tx
 			tx := pool.PopWithBlacklist(fromBlacklist, toBlacklist)
+			//如果为空继续循环
 			if tx == nil {
 				<-mergeCh // unlock
 				continue
@@ -534,11 +539,13 @@ func (block *Block) CollectTransactions(deadlineInMs int64) {
 			}).Debug("Pop tx.")
 
 			fetch++
+			//fromBlacklist和toBlacklist类似于一个并发控制操作
+			//保证了在一个block不能有一个用户参与多笔交易
 			fromBlacklist.Store(tx.from.address.Hex(), true)
 			fromBlacklist.Store(tx.to.address.Hex(), true)
 			toBlacklist.Store(tx.from.address.Hex(), true)
 			toBlacklist.Store(tx.to.address.Hex(), true)
-			<-mergeCh // lock
+			<-mergeCh // unLock
 
 			parallelCh <- true // fetch access token
 			go func() {
@@ -1167,6 +1174,7 @@ func transfer(from, to byteutils.Hash, value *util.Uint128, ws WorldState) (bool
 // system error: giveback == true
 // logic error: giveback == false, expect Bigger Nonce
 func (block *Block) ExecuteTransaction(tx *Transaction, ws WorldState) (bool, error) {
+	//校验fromAccount和nonce值
 	if giveback, err := CheckTransaction(tx, ws); err != nil {
 		logging.VLog().WithFields(logrus.Fields{
 			"tx":  tx,
@@ -1174,7 +1182,7 @@ func (block *Block) ExecuteTransaction(tx *Transaction, ws WorldState) (bool, er
 		}).Info("Failed to check transaction")
 		return giveback, err
 	}
-
+	//判断gas值并执行tx
 	if giveback, err := VerifyExecution(tx, block, ws); err != nil {
 		logging.VLog().WithFields(logrus.Fields{
 			"tx":  tx,
@@ -1182,7 +1190,7 @@ func (block *Block) ExecuteTransaction(tx *Transaction, ws WorldState) (bool, er
 		}).Info("Failed to verify transaction execution")
 		return giveback, err
 	}
-
+	//将tx放入ws
 	if giveback, err := AcceptTransaction(tx, ws); err != nil {
 		logging.VLog().WithFields(logrus.Fields{
 			"tx":  tx,

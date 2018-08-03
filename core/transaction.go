@@ -425,7 +425,7 @@ func submitTx(tx *Transaction, block *Block, ws WorldState,
 			return true, err
 		}
 	}
-
+	//记录用户消耗的GAS值
 	if err := tx.recordGas(gas, ws); err != nil {
 		logging.VLog().WithFields(logrus.Fields{
 			"err":   err,
@@ -436,6 +436,7 @@ func submitTx(tx *Transaction, block *Block, ws WorldState,
 		metricsUnexpectedBehavior.Update(1)
 		return true, err
 	}
+	//记录执行结果
 	if err := tx.recordResultEvent(gas, exeErr, ws, block, exeResult); err != nil {
 		logging.VLog().WithFields(logrus.Fields{
 			"err":   err,
@@ -832,6 +833,7 @@ func CheckContract(addr *Address, ws WorldState) (state.Account, error) {
 }
 
 // CheckTransaction in a tx world state
+//校验fromAccount和nonce值
 func CheckTransaction(tx *Transaction, ws WorldState) (bool, error) {
 	// check nonce
 	fromAcc, err := ws.GetOrCreateUserAccount(tx.from.address)
@@ -853,6 +855,7 @@ func CheckTransaction(tx *Transaction, ws WorldState) (bool, error) {
 }
 
 // AcceptTransaction in a tx world state
+//将tx放入ws,并增加fromAccount Nonce值
 func AcceptTransaction(tx *Transaction, ws WorldState) (bool, error) {
 	// record tx
 	pbTx, err := tx.ToProto()

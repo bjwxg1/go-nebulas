@@ -53,17 +53,19 @@ type TransactionPool struct {
 	size              int
 	//候选者的列表(有序)
 	candidates        *sorted.Slice
-
+	//buckets中的key是tx的from的address, value是一个有序列表
 	buckets           map[byteutils.HexHash]*sorted.Slice
 	//存放所有的tx，key tx的hash
 	all               map[byteutils.HexHash]*Transaction
-
+	//bucketsLastUpdate中的key是tx中from的address, value是这个address最新tx的时间
 	bucketsLastUpdate map[byteutils.HexHash]time.Time
 
 	ns net.Service
 	mu sync.RWMutex
 
+	//固定值指定最低的GasPrice
 	minGasPrice *util.Uint128 // the lowest gasPrice.
+	//固定值 指定了最大的GasLimit
 	maxGasLimit *util.Uint128 // the maximum gasLimit.
 
 	eventEmitter *EventEmitter
@@ -89,6 +91,7 @@ func gasCmp(a interface{}, b interface{}) int {
 }
 
 // NewTransactionPool create a new TransactionPool
+//注意size值设定的是receivedMessageCh的size
 func NewTransactionPool(size int) (*TransactionPool, error) {
 	return &TransactionPool{
 		receivedMessageCh: make(chan net.Message, size),
@@ -310,6 +313,7 @@ func (pool *TransactionPool) Push(tx *Transaction) error {
 		}
 	}
 	// verify non-dup tx
+	// 判断是否已经存在
 	if _, ok := pool.all[tx.hash.Hex()]; ok {
 		metricsDuplicateTx.Inc(1)
 		return ErrDuplicatedTransaction
@@ -332,6 +336,7 @@ func (pool *TransactionPool) Push(tx *Transaction) error {
 	}
 
 	// verify hash & sign of tx
+	//检验tx的hash值和签名
 	if err := tx.VerifyIntegrity(pool.bc.chainID); err != nil {
 		metricsInvalidTx.Inc(1)
 		return err
@@ -343,7 +348,6 @@ func (pool *TransactionPool) Push(tx *Transaction) error {
 	if len(pool.all) > pool.size {
 		poollen := len(pool.all)
 		pool.dropTx()
-
 		logging.VLog().WithFields(logrus.Fields{
 			"tx":         tx.StringWithoutData(),
 			"size":       pool.size,
@@ -363,7 +367,9 @@ func (pool *TransactionPool) Push(tx *Transaction) error {
 	return nil
 }
 
+//将事务放入到txPool
 func (pool *TransactionPool) pushTx(tx *Transaction) {
+	//注意bucket是的key是tx中from的地址
 	slot := tx.from.address.Hex()
 	bucket, ok := pool.buckets[slot]
 	if !ok {
@@ -430,6 +436,7 @@ func (pool *TransactionPool) dropTx() {
 }
 
 // PopWithBlacklist return a tx with highest gasprice and not in the blocklist
+//遍历candidates，取出tfromAddress不在fromBlacklist，toAddress不在toBlacklist的tx,并将tx从transactionPool删除
 func (pool *TransactionPool) PopWithBlacklist(fromBlacklist *sync.Map, toBlacklist *sync.Map) *Transaction {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()

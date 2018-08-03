@@ -282,10 +282,12 @@ func (db *MVCCDB) Prepare(tid interface{}) (*MVCCDB, error) {
 		return nil, ErrTidIsNil
 	}
 
+	//判断preparedDbs是否为空
 	if db.preparedDBs[tid] != nil {
 		return nil, ErrTidIsExist
 	}
 
+	//stagingTable
 	preparedStagingTable, err := db.stagingTable.Prepare(tid)
 	if err != nil {
 		return nil, err
